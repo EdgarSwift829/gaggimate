@@ -17,13 +17,6 @@ import os
 import shutil
 import sys
 
-from pipeline.downloader import download_video, extract_audio, is_url
-from pipeline.transcriber import transcribe
-from pipeline.translator import translate_segments
-from pipeline.tts import generate_dubbed_audio
-from pipeline.composer import compose_video, generate_srt
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="YouTube Japanese dubbing pipeline",
@@ -67,8 +60,40 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def check_dependencies() -> None:
+    """Check that required packages are installed."""
+    missing = []
+    for module, package in [
+        ("whisper", "openai-whisper"),
+        ("anthropic", "anthropic"),
+        ("torch", "torch"),
+        ("soundfile", "soundfile"),
+        ("transformers", "transformers"),
+    ]:
+        try:
+            __import__(module)
+        except ImportError:
+            missing.append(package)
+    if missing:
+        print(
+            f"Error: Missing required packages: {', '.join(missing)}\n"
+            f"Install with: pip install {' '.join(missing)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def main() -> None:
     args = parse_args()
+
+    # Check dependencies before importing pipeline modules
+    check_dependencies()
+
+    from pipeline.downloader import download_video, extract_audio, is_url
+    from pipeline.transcriber import transcribe
+    from pipeline.translator import translate_segments
+    from pipeline.tts import generate_dubbed_audio
+    from pipeline.composer import compose_video, generate_srt
 
     # Setup logging
     logging.basicConfig(

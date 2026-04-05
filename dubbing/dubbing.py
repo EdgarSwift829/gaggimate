@@ -127,7 +127,7 @@ def run_pipeline(
 
     try:
         # Step 1: Download / extract audio
-        progress(1, 6, "Input processing")
+        progress(1, 6, "入力処理")
         if is_url(input_path):
             video_path, audio_path, title = download_video(input_path, tmp_dir)
         else:
@@ -136,26 +136,26 @@ def run_pipeline(
             video_path, audio_path, title = extract_audio(input_path, tmp_dir)
 
         # Step 2: Transcribe with Whisper
-        progress(2, 6, "Transcription (Whisper)")
+        progress(2, 6, "文字起こし (Whisper)")
         segments = transcribe(audio_path, model_name=whisper_model)
 
         # Step 3: Translate with Claude API
-        progress(3, 6, "Translation (Claude API)")
+        progress(3, 6, "翻訳 (Claude API)")
         translated_segments = translate_segments(segments)
 
         # Step 4: Generate Japanese TTS audio
-        progress(4, 6, "TTS (Qwen3-TTS)")
+        progress(4, 6, "音声合成 (Qwen3-TTS)")
         dubbed_audio_path = generate_dubbed_audio(
             translated_segments, tmp_dir, model_name=tts_model,
         )
 
         # Step 5: Generate SRT
-        progress(5, 6, "Generating subtitles")
+        progress(5, 6, "字幕生成")
         srt_path = os.path.join(output_dir, f"output_{title}.srt")
         generate_srt(translated_segments, srt_path)
 
         # Step 6: Compose final video
-        progress(6, 6, "Composing video (ffmpeg)")
+        progress(6, 6, "動画合成 (ffmpeg)")
         output_path = os.path.join(output_dir, f"output_{title}.mp4")
         compose_video(
             video_path=video_path,

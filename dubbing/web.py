@@ -60,7 +60,7 @@ def start_job():
         uploaded.save(save_path)
         input_path = save_path
     else:
-        return jsonify({"error": "No URL or file provided"}), 400
+        return jsonify({"error": "URLまたはファイルが指定されていません"}), 400
 
     job_output_dir = os.path.join(OUTPUT_DIR, job_id)
     job = {
@@ -134,7 +134,7 @@ def _run_job(job_id, input_path, output_dir, audio_mode, subtitle_mode,
 def progress(job_id):
     """SSE endpoint for real-time progress updates."""
     if job_id not in jobs:
-        return jsonify({"error": "Job not found"}), 404
+        return jsonify({"error": "ジョブが見つかりません"}), 404
 
     def generate():
         eq = jobs[job_id]["events"]
@@ -156,11 +156,11 @@ def progress(job_id):
 def download(job_id, file_type):
     """Download output files."""
     if job_id not in jobs:
-        return jsonify({"error": "Job not found"}), 404
+        return jsonify({"error": "ジョブが見つかりません"}), 404
 
     job = jobs[job_id]
     if job["status"] != "done" or not job["result"]:
-        return jsonify({"error": "Job not complete"}), 400
+        return jsonify({"error": "ジョブが未完了です"}), 400
 
     if file_type == "video":
         path = job["result"]["video"]
@@ -169,7 +169,7 @@ def download(job_id, file_type):
         path = job["result"]["srt"]
         return send_file(path, as_attachment=True)
     else:
-        return jsonify({"error": "Invalid file type"}), 400
+        return jsonify({"error": "無効なファイル種別です"}), 400
 
 
 def parse_args():

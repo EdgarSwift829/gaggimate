@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YouTube Japanese Dubbing</title>
+<title>YouTube 日本語吹き替え</title>
 <style>
   :root { --bg: #0f0f0f; --card: #1a1a2e; --accent: #e94560; --accent2: #0f3460; --text: #eee; --muted: #888; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -54,14 +54,14 @@
 </head>
 <body>
 <div class="container">
-  <h1>YouTube Japanese Dubbing</h1>
+  <h1>YouTube 日本語吹き替え</h1>
   <p class="subtitle">yt-dlp + Whisper + Claude API + Qwen3-TTS + ffmpeg</p>
 
   <form id="dubbing-form" class="card">
     <!-- Input mode tabs -->
     <div class="tabs">
       <div class="tab active" data-mode="url">YouTube URL</div>
-      <div class="tab" data-mode="file">Upload File</div>
+      <div class="tab" data-mode="file">ファイルアップロード</div>
     </div>
 
     <div id="input-url" class="field">
@@ -70,30 +70,30 @@
     </div>
 
     <div id="input-file" class="field" style="display:none;">
-      <label for="file">Video File (MP4, MKV, etc.)</label>
+      <label for="file">動画ファイル（MP4, MKV等）</label>
       <input type="file" id="file" name="file" accept="video/*">
     </div>
 
     <div class="row">
       <div class="field">
-        <label for="audio">Original Audio</label>
+        <label for="audio">元音声の処理</label>
         <select id="audio" name="audio">
-          <option value="mute">Mute (remove)</option>
-          <option value="lower">Lower (-30dB)</option>
+          <option value="mute">消音（ミュート）</option>
+          <option value="lower">音量低下（-30dB）</option>
         </select>
       </div>
       <div class="field">
-        <label for="subtitle">Subtitle</label>
+        <label for="subtitle">字幕</label>
         <select id="subtitle" name="subtitle">
-          <option value="soft">Soft (embedded)</option>
-          <option value="burn">Burn (hardcoded)</option>
+          <option value="soft">ソフトサブ（切替可能）</option>
+          <option value="burn">焼き込み（固定）</option>
         </select>
       </div>
     </div>
 
     <div class="row">
       <div class="field">
-        <label for="whisper-model">Whisper Model</label>
+        <label for="whisper-model">Whisper モデル</label>
         <select id="whisper-model" name="whisper_model">
           <option value="large-v3">large-v3</option>
           <option value="large-v2">large-v2</option>
@@ -104,28 +104,28 @@
         </select>
       </div>
       <div class="field">
-        <label for="keep-tmp">Temp Files</label>
+        <label for="keep-tmp">中間ファイル</label>
         <select id="keep-tmp" name="keep_tmp">
-          <option value="false">Auto-delete</option>
-          <option value="true">Keep</option>
+          <option value="false">自動削除</option>
+          <option value="true">保持する</option>
         </select>
       </div>
     </div>
 
-    <button type="submit" class="primary" id="submit-btn">Start Dubbing</button>
+    <button type="submit" class="primary" id="submit-btn">吹き替え開始</button>
   </form>
 
   <div id="progress-section" class="card">
-    <div class="step-label" id="step-label">Preparing...</div>
+    <div class="step-label" id="step-label">準備中...</div>
     <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar"></div></div>
     <div class="log-box" id="log-box"></div>
   </div>
 
   <div id="result-section" class="card">
-    <div class="step-label">Dubbing complete!</div>
+    <div class="step-label">吹き替え完了！</div>
     <div class="result-links">
-      <a id="dl-video" href="#" download>Download MP4</a>
-      <a id="dl-srt" class="srt" href="#" download>Download SRT</a>
+      <a id="dl-video" href="#" download>MP4 ダウンロード</a>
+      <a id="dl-srt" class="srt" href="#" download>SRT ダウンロード</a>
     </div>
   </div>
 </div>
@@ -169,7 +169,7 @@ form.addEventListener('submit', async (e) => {
   resultSection.style.display = 'none';
   logBox.innerHTML = '';
   progressBar.style.width = '0%';
-  stepLabel.textContent = 'Starting...';
+  stepLabel.textContent = '開始中...';
 
   const formData = new FormData();
   formData.append('audio', document.getElementById('audio').value);
@@ -179,23 +179,23 @@ form.addEventListener('submit', async (e) => {
 
   if (inputMode === 'url') {
     const url = document.getElementById('url').value.trim();
-    if (!url) { addLog('Error: Please enter a URL', true); submitBtn.disabled = false; return; }
+    if (!url) { addLog('エラー: URLを入力してください', true); submitBtn.disabled = false; return; }
     formData.append('url', url);
   } else {
     const fileInput = document.getElementById('file');
-    if (!fileInput.files.length) { addLog('Error: Please select a file', true); submitBtn.disabled = false; return; }
+    if (!fileInput.files.length) { addLog('エラー: ファイルを選択してください', true); submitBtn.disabled = false; return; }
     formData.append('file', fileInput.files[0]);
   }
 
   try {
     const resp = await fetch('/api/start', { method: 'POST', body: formData });
     const data = await resp.json();
-    if (!resp.ok) { addLog('Error: ' + data.error, true); submitBtn.disabled = false; return; }
+    if (!resp.ok) { addLog('エラー: ' + data.error, true); submitBtn.disabled = false; return; }
     const jobId = data.job_id;
-    addLog('Job started: ' + jobId);
+    addLog('ジョブ開始: ' + jobId);
     pollProgress(jobId);
   } catch (err) {
-    addLog('Error: ' + err.message, true);
+    addLog('エラー: ' + err.message, true);
     submitBtn.disabled = false;
   }
 });
@@ -207,7 +207,7 @@ async function pollProgress(jobId) {
     if (data.step && data.total) {
       const pct = Math.round((data.step / data.total) * 100);
       progressBar.style.width = pct + '%';
-      stepLabel.textContent = `Step ${data.step}/${data.total}: ${data.message}`;
+      stepLabel.textContent = `ステップ ${data.step}/${data.total}: ${data.message}`;
     }
     if (data.log) {
       addLog(data.log);
@@ -215,7 +215,7 @@ async function pollProgress(jobId) {
     if (data.status === 'done') {
       evtSource.close();
       progressBar.style.width = '100%';
-      stepLabel.textContent = 'Complete!';
+      stepLabel.textContent = '完了！';
       resultSection.style.display = 'block';
       document.getElementById('dl-video').href = '/api/download/' + jobId + '/video';
       document.getElementById('dl-srt').href = '/api/download/' + jobId + '/srt';
@@ -223,13 +223,13 @@ async function pollProgress(jobId) {
     }
     if (data.status === 'error') {
       evtSource.close();
-      addLog('Pipeline error: ' + data.error, true);
+      addLog('パイプラインエラー: ' + data.error, true);
       submitBtn.disabled = false;
     }
   };
   evtSource.onerror = () => {
     evtSource.close();
-    addLog('Connection lost. Check server logs.', true);
+    addLog('接続が切れました。サーバーログを確認してください。', true);
     submitBtn.disabled = false;
   };
 }

@@ -83,83 +83,118 @@ def check_dependencies() -> None:
         sys.exit(1)
 
 
-def main() -> None:
-    args = parse_args()
+def run_pipeline(
+    input_path: str,
+    output_dir: str = "./output",
+    audio_mode: str = "mute",
+    subtitle_mode: str = "soft",
+    whisper_model: str = "large-v3",
+    tts_model: str = "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+    keep_tmp: bool = False,
+    on_progress: callable = None,
+) -> dict:
+    """Run the dubbing pipeline.
 
-    # Check dependencies before importing pipeline modules
-    check_dependencies()
+    Args:
+        input_path: YouTube URL or local video file path.
+        output_dir: Output directory.
+        audio_mode: "mute" or "lower".
+        subtitle_mode: "burn" or "soft".
+        whisper_model: Whisper model name.
+        tts_model: Qwen3-TTS model name.
+        keep_tmp: Whether to keep intermediate files.
+        on_progress: Callback(step: int, total: int, message: str).
 
+    Returns:
+        Dict with "video", "srt" output paths.
+    """
     from pipeline.downloader import download_video, extract_audio, is_url
     from pipeline.transcriber import transcribe
     from pipeline.translator import translate_segments
     from pipeline.tts import generate_dubbed_audio
     from pipeline.composer import compose_video, generate_srt
 
-    # Setup logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
     logger = logging.getLogger("dubbing")
 
-    # Setup directories
-    os.makedirs(args.output_dir, exist_ok=True)
-    tmp_dir = os.path.join(args.output_dir, "tmp")
+    def progress(step, total, msg):
+        logger.info("=== Step %d/%d: %s ===", step, total, msg)
+        if on_progress:
+            on_progress(step, total, msg)
+
+    os.makedirs(output_dir, exist_ok=True)
+    tmp_dir = os.path.join(output_dir, "tmp")
     os.makedirs(tmp_dir, exist_ok=True)
 
     try:
         # Step 1: Download / extract audio
-        logger.info("=== Step 1: Input processing ===")
-        if is_url(args.input):
-            video_path, audio_path, title = download_video(args.input, tmp_dir)
+        progress(1, 6, "Input processing")
+        if is_url(input_path):
+            video_path, audio_path, title = download_video(input_path, tmp_dir)
         else:
-            if not os.path.isfile(args.input):
-                logger.error("File not found: %s", args.input)
-                sys.exit(1)
-            video_path, audio_path, title = extract_audio(args.input, tmp_dir)
+            if not os.path.isfile(input_path):
+                raise FileNotFoundError(f"File not found: {input_path}")
+            video_path, audio_path, title = extract_audio(input_path, tmp_dir)
 
         # Step 2: Transcribe with Whisper
-        logger.info("=== Step 2: Transcription (Whisper) ===")
-        segments = transcribe(audio_path, model_name=args.whisper_model)
+        progress(2, 6, "Transcription (Whisper)")
+        segments = transcribe(audio_path, model_name=whisper_model)
 
         # Step 3: Translate with Claude API
-        logger.info("=== Step 3: Translation (Claude API) ===")
+        progress(3, 6, "Translation (Claude API)")
         translated_segments = translate_segments(segments)
 
         # Step 4: Generate Japanese TTS audio
-        logger.info("=== Step 4: TTS (Qwen3-TTS) ===")
+        progress(4, 6, "TTS (Qwen3-TTS)")
         dubbed_audio_path = generate_dubbed_audio(
-            translated_segments, tmp_dir,
-            model_name=args.tts_model,
+            translated_segments, tmp_dir, model_name=tts_model,
         )
 
         # Step 5: Generate SRT
-        logger.info("=== Step 5: Generating subtitles ===")
-        srt_path = os.path.join(args.output_dir, f"output_{title}.srt")
+        progress(5, 6, "Generating subtitles")
+        srt_path = os.path.join(output_dir, f"output_{title}.srt")
         generate_srt(translated_segments, srt_path)
 
         # Step 6: Compose final video
-        logger.info("=== Step 6: Composing video (ffmpeg) ===")
-        output_path = os.path.join(args.output_dir, f"output_{title}.mp4")
+        progress(6, 6, "Composing video (ffmpeg)")
+        output_path = os.path.join(output_dir, f"output_{title}.mp4")
         compose_video(
             video_path=video_path,
             dubbed_audio_path=dubbed_audio_path,
             srt_path=srt_path,
             output_path=output_path,
-            audio_mode=args.audio,
-            subtitle_mode=args.subtitle,
+            audio_mode=audio_mode,
+            subtitle_mode=subtitle_mode,
         )
 
-        logger.info("=== Done! ===")
-        logger.info("Output video: %s", output_path)
-        logger.info("Subtitles: %s", srt_path)
+        logger.info("Done! Video: %s, SRT: %s", output_path, srt_path)
+        return {"video": output_path, "srt": srt_path}
 
     finally:
-        # Cleanup tmp directory unless --keep-tmp is set
-        if not args.keep_tmp and os.path.exists(tmp_dir):
+        if not keep_tmp and os.path.exists(tmp_dir):
             logger.info("Cleaning up temporary files...")
             shutil.rmtree(tmp_dir)
+
+
+def main() -> None:
+    args = parse_args()
+
+    check_dependencies()
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    run_pipeline(
+        input_path=args.input,
+        output_dir=args.output_dir,
+        audio_mode=args.audio,
+        subtitle_mode=args.subtitle,
+        whisper_model=args.whisper_model,
+        tts_model=args.tts_model,
+        keep_tmp=args.keep_tmp,
+    )
 
 
 if __name__ == "__main__":

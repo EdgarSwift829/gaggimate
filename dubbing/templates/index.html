@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube Japanese Dubbing</title>
+<style>
+  :root { --bg: #0f0f0f; --card: #1a1a2e; --accent: #e94560; --accent2: #0f3460; --text: #eee; --muted: #888; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 40px 16px; }
+  .container { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.6rem; margin-bottom: 8px; }
+  .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 32px; }
+  .card { background: var(--card); border-radius: 12px; padding: 28px; margin-bottom: 20px; }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+  input[type="text"], input[type="file"], select {
+    width: 100%; padding: 10px 14px; border: 1px solid #333; border-radius: 8px;
+    background: #111; color: var(--text); font-size: 0.95rem; outline: none; transition: border 0.2s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .field { margin-bottom: 18px; }
+  .row { display: flex; gap: 16px; }
+  .row .field { flex: 1; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tab { flex: 1; padding: 10px; text-align: center; border-radius: 8px; cursor: pointer; border: 1px solid #333; background: #111; font-size: 0.9rem; transition: all 0.2s; }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .tab:hover:not(.active) { border-color: #555; }
+  .divider { text-align: center; color: var(--muted); font-size: 0.8rem; margin: 14px 0; position: relative; }
+  .divider::before, .divider::after { content: ''; position: absolute; top: 50%; width: 40%; height: 1px; background: #333; }
+  .divider::before { left: 0; } .divider::after { right: 0; }
+  button.primary {
+    width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 1rem; font-weight: 600;
+    background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; cursor: pointer; transition: opacity 0.2s;
+  }
+  button.primary:hover { opacity: 0.9; }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  /* Progress */
+  #progress-section { display: none; }
+  .progress-bar-outer { width: 100%; height: 8px; background: #222; border-radius: 4px; overflow: hidden; margin: 12px 0; }
+  .progress-bar-inner { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 4px; transition: width 0.4s ease; }
+  .step-label { font-size: 0.9rem; color: var(--muted); }
+  .log-box { background: #111; border-radius: 8px; padding: 12px; margin-top: 14px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; color: #aaa; line-height: 1.6; }
+  .log-box .error { color: #f44; }
+  /* Result */
+  #result-section { display: none; }
+  .result-links { display: flex; gap: 12px; margin-top: 12px; }
+  .result-links a {
+    flex: 1; display: block; text-align: center; padding: 12px; border-radius: 8px;
+    background: var(--accent2); color: #fff; text-decoration: none; font-weight: 500; transition: opacity 0.2s;
+  }
+  .result-links a:hover { opacity: 0.85; }
+  .result-links a.srt { background: #333; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>YouTube Japanese Dubbing</h1>
+  <p class="subtitle">yt-dlp + Whisper + Claude API + Qwen3-TTS + ffmpeg</p>
+
+  <form id="dubbing-form" class="card">
+    <!-- Input mode tabs -->
+    <div class="tabs">
+      <div class="tab active" data-mode="url">YouTube URL</div>
+      <div class="tab" data-mode="file">Upload File</div>
+    </div>
+
+    <div id="input-url" class="field">
+      <label for="url">YouTube URL</label>
+      <input type="text" id="url" name="url" placeholder="https://youtu.be/...">
+    </div>
+
+    <div id="input-file" class="field" style="display:none;">
+      <label for="file">Video File (MP4, MKV, etc.)</label>
+      <input type="file" id="file" name="file" accept="video/*">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="audio">Original Audio</label>
+        <select id="audio" name="audio">
+          <option value="mute">Mute (remove)</option>
+          <option value="lower">Lower (-30dB)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="subtitle">Subtitle</label>
+        <select id="subtitle" name="subtitle">
+          <option value="soft">Soft (embedded)</option>
+          <option value="burn">Burn (hardcoded)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="whisper-model">Whisper Model</label>
+        <select id="whisper-model" name="whisper_model">
+          <option value="large-v3">large-v3</option>
+          <option value="large-v2">large-v2</option>
+          <option value="medium">medium</option>
+          <option value="small">small</option>
+          <option value="base">base</option>
+          <option value="tiny">tiny</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="keep-tmp">Temp Files</label>
+        <select id="keep-tmp" name="keep_tmp">
+          <option value="false">Auto-delete</option>
+          <option value="true">Keep</option>
+        </select>
+      </div>
+    </div>
+
+    <button type="submit" class="primary" id="submit-btn">Start Dubbing</button>
+  </form>
+
+  <div id="progress-section" class="card">
+    <div class="step-label" id="step-label">Preparing...</div>
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar"></div></div>
+    <div class="log-box" id="log-box"></div>
+  </div>
+
+  <div id="result-section" class="card">
+    <div class="step-label">Dubbing complete!</div>
+    <div class="result-links">
+      <a id="dl-video" href="#" download>Download MP4</a>
+      <a id="dl-srt" class="srt" href="#" download>Download SRT</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById('dubbing-form');
+const tabs = document.querySelectorAll('.tab');
+const urlSection = document.getElementById('input-url');
+const fileSection = document.getElementById('input-file');
+const submitBtn = document.getElementById('submit-btn');
+const progressSection = document.getElementById('progress-section');
+const resultSection = document.getElementById('result-section');
+const progressBar = document.getElementById('progress-bar');
+const stepLabel = document.getElementById('step-label');
+const logBox = document.getElementById('log-box');
+
+let inputMode = 'url';
+
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    inputMode = tab.dataset.mode;
+    urlSection.style.display = inputMode === 'url' ? 'block' : 'none';
+    fileSection.style.display = inputMode === 'file' ? 'block' : 'none';
+  });
+});
+
+function addLog(msg, isError) {
+  const line = document.createElement('div');
+  if (isError) line.className = 'error';
+  line.textContent = msg;
+  logBox.appendChild(line);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  submitBtn.disabled = true;
+  progressSection.style.display = 'block';
+  resultSection.style.display = 'none';
+  logBox.innerHTML = '';
+  progressBar.style.width = '0%';
+  stepLabel.textContent = 'Starting...';
+
+  const formData = new FormData();
+  formData.append('audio', document.getElementById('audio').value);
+  formData.append('subtitle', document.getElementById('subtitle').value);
+  formData.append('whisper_model', document.getElementById('whisper-model').value);
+  formData.append('keep_tmp', document.getElementById('keep-tmp').value);
+
+  if (inputMode === 'url') {
+    const url = document.getElementById('url').value.trim();
+    if (!url) { addLog('Error: Please enter a URL', true); submitBtn.disabled = false; return; }
+    formData.append('url', url);
+  } else {
+    const fileInput = document.getElementById('file');
+    if (!fileInput.files.length) { addLog('Error: Please select a file', true); submitBtn.disabled = false; return; }
+    formData.append('file', fileInput.files[0]);
+  }
+
+  try {
+    const resp = await fetch('/api/start', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!resp.ok) { addLog('Error: ' + data.error, true); submitBtn.disabled = false; return; }
+    const jobId = data.job_id;
+    addLog('Job started: ' + jobId);
+    pollProgress(jobId);
+  } catch (err) {
+    addLog('Error: ' + err.message, true);
+    submitBtn.disabled = false;
+  }
+});
+
+async function pollProgress(jobId) {
+  const evtSource = new EventSource('/api/progress/' + jobId);
+  evtSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.step && data.total) {
+      const pct = Math.round((data.step / data.total) * 100);
+      progressBar.style.width = pct + '%';
+      stepLabel.textContent = `Step ${data.step}/${data.total}: ${data.message}`;
+    }
+    if (data.log) {
+      addLog(data.log);
+    }
+    if (data.status === 'done') {
+      evtSource.close();
+      progressBar.style.width = '100%';
+      stepLabel.textContent = 'Complete!';
+      resultSection.style.display = 'block';
+      document.getElementById('dl-video').href = '/api/download/' + jobId + '/video';
+      document.getElementById('dl-srt').href = '/api/download/' + jobId + '/srt';
+      submitBtn.disabled = false;
+    }
+    if (data.status === 'error') {
+      evtSource.close();
+      addLog('Pipeline error: ' + data.error, true);
+      submitBtn.disabled = false;
+    }
+  };
+  evtSource.onerror = () => {
+    evtSource.close();
+    addLog('Connection lost. Check server logs.', true);
+    submitBtn.disabled = false;
+  };
+}
+</script>
+</body>
+</html>
